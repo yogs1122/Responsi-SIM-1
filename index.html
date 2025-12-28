@@ -1,0 +1,2608 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sapi FPS - Interactive Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: monospace; }
+        
+        /* UI GAME (Sembunyi dulu di awal) */
+        .game-ui { display: none; }
+
+        #crosshair {
+            position: fixed; top: 50%; left: 50%;
+            width: 8px; height: 8px;
+            background: rgba(224, 183, 48, 0.8);
+            border: 1px solid white; border-radius: 50%;
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
+        }
+
+        #ui {
+            position: fixed; top: 20px; left: 20px;
+            color: rgb(231, 173, 17); background: rgba(119, 130, 255, 0.8);
+            padding: 15px; border: 2px solid rgba(219, 145, 27, 0.729); border-radius: 8px;
+            font-size: 14px; pointer-events: none;
+        }
+
+        /* LOADING OVERLAY */
+        #loading-overlay {
+            position: fixed; inset: 0; display: flex; flex-direction: column; gap: 18px;
+            align-items: center; justify-content: center;
+            background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.35));
+            z-index: 9999; color: white; transition: opacity 400ms ease;
+        }
+
+        #loading-bar-container {
+            width: 60%; max-width: 700px; height: 18px; background: rgba(255,255,255,0.12);
+            border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        #loading-bar {
+            height: 100%; width: 0%; background: linear-gradient(90deg,#ffd166,#f07a5f);
+            transition: width 120ms linear;
+        }
+
+        #loading-percent { font-weight: 700; font-size: 20px; }
+        #loading-text { font-size: 18px; opacity: 0.95; }
+
+        /* PESAN START MENU (ditampilkan setelah loading selesai, di-tengah) */
+        #start-msg {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 36px; font-weight: 1000; text-align: center;
+            display: none; z-index: 9000; pointer-events: none; opacity: 0;
+            transition: opacity 300ms ease; letter-spacing: 2px;
+            background: linear-gradient(135deg, #ff354d, #2b00ff, #00d4ff, #ff006e);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+            filter: drop-shadow(0 0 10px rgba(255, 235, 59, 0.6));
+        }
+
+        #start-msg.visible { 
+            display: block; opacity: 1; 
+            animation: floatGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes floatGlow {
+            0%, 100% { 
+                transform: translate(-50%, -50%) translateY(0) scale(1);
+                filter: brightness(1) drop-shadow(0 0 10px rgba(255, 235, 59, 0.6));
+            }
+            25% { 
+                transform: translate(-50%, -50%) translateY(-12px) scale(1.05);
+                filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 107, 53, 0.8));
+            }
+            50% { 
+                transform: translate(-50%, -50%) translateY(0) scale(1);
+                filter: brightness(1) drop-shadow(0 0 10px rgba(255, 235, 59, 0.6));
+            }
+            75% { 
+                transform: translate(-50%, -50%) translateY(-8px) scale(1.02);
+                filter: brightness(1.15) drop-shadow(0 0 15px rgba(0, 212, 255, 0.7));
+            }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+            100% { opacity: 0.7; transform: scale(1); }
+        }
+
+        /* --- CSS POPUP ARTIKEL --- */
+        #interact-msg {
+            display: none; 
+            position: fixed; top: 60%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white; padding: 10px 20px;
+            border: 1px solid white; border-radius: 20px;
+            font-size: 16px; font-weight: bold;
+        }
+
+        /* --- MODAL ARTICLE LAYOUT --- */
+        #info-modal {
+            display: none; 
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%; max-width: 900px; max-height: 85vh;
+            background: white; color: #333;
+            border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 100; overflow-y: auto;
+            animation: slideIn 0.3s ease-out;
+            pointer-events: auto;
+        }
+        
+        #info-modal.active {
+            display: block;
+            visibility: visible;
+            opacity: 1;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -48%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        #info-modal::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #info-modal::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        #info-modal::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+
+        #info-modal::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .article-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px 12px 0 0;
+            text-align: center;
+        }
+
+        .article-header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .article-meta {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-bottom: 0;
+        }
+
+        .article-content {
+            padding: 30px;
+        }
+
+        .article-image {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #ccc;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .article-image img {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 6px;
+            object-fit: cover;
+        }
+
+        .article-text {
+            line-height: 1.8;
+            font-size: 15px;
+            color: #555;
+            margin-bottom: 20px;
+        }
+
+        .article-text h2 {
+            color: #333;
+            font-size: 20px;
+            margin-top: 25px;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .article-text p {
+            margin: 12px 0;
+            text-align: justify;
+        }
+
+        .article-text ul, .article-text ol {
+            margin: 15px 0;
+            padding-left: 25px;
+        }
+
+        .article-text li {
+            margin: 8px 0;
+        }
+
+        .article-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .close-btn {
+            background: #ff4444; color: white; border: none;
+            padding: 10px 20px; cursor: pointer; border-radius: 6px;
+            font-size: 14px; font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background: #cc0000;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);
+        }
+
+        .close-btn:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="crosshair" class="game-ui"></div>
+    <div id="ui" class="game-ui">
+        <strong>MODE: FIRST PERSON</strong><br>
+        [W/S] Maju / Mundur<br>
+        [A/D] Putar Kepala<br>
+        [SHIFT] Lari<br>
+        [ENTER] Baca Info
+    </div>
+
+    <div id="loading-overlay">
+        <div id="loading-bar-container"><div id="loading-bar"></div></div>
+        <div id="loading-percent">0%</div>
+        <div id="loading-text">Bantul Kewan Consulting Group</div>
+    </div>
+
+    <div id="start-msg"></div>
+
+    <div id="interact-msg">Tekan [ENTER] untuk membaca</div>
+
+    <div id="info-modal">
+        <div class="article-header">
+            <h1>HASBI SI BABI</h1>
+            <div class="article-meta">Keturunan China</div>
+        </div>
+
+        <div class="article-content">
+            <!-- Placeholder Gambar -->
+            <div class="article-image">
+                <img id="article-img" src="public/models/gambar.png" alt="Gambar Artikel">
+                <span id="img-placeholder" style="display: none;">Gambar akan ditampilkan di sini</span>
+            </div>
+
+            <!-- Konten Artikel -->
+            <div class="article-text">
+                <h2>Profil Karakter: Hasbi si Babi Jenius</h2>
+                <p>
+                    Nama: Hasbi Ras: Meishan (Babi Asli Cina) Keahlian Khusus: Matematika Tingkat Lanjut & Kalkulus
+                </p>
+
+                <h2>1. Penampilan Fisik</h2>
+                <p>
+                    Berbeda dengan babi ternak biasa yang berwarna merah muda, Hasbi memiliki penampilan yang sangat khas dan berwibawa:
+                </p>
+                <ul>
+                    <li><strong>Warna & Kulit:</strong> Kulitnya berwarna hitam legam dengan bulu-bulu halus. Wajahnya dipenuhi lipatan dan kerutan khas ras Meishan. Orang sering mengira kerutan itu karena usia, padahal itu adalah "kerutan berpikir" karena ia terlalu sering merenungkan rumus.</li>
+                    <li><strong>Telinga:</strong> Ia memiliki telinga lebar dan panjang yang terkulai ke bawah (floppy ears), sering kali menutupi matanya saat ia sedang fokus menghitung.</li>
+                    <li><strong>Postur:</strong> Tubuhnya gempal dengan perut yang agak turun ke bawah, namun gerakannya sangat presisi dan efisien.</li>
+                </ul>
+
+                <h2>2. Kecerdasan Matematika</h2>
+                <p>
+                    Hasbi bukanlah babi biasa yang hanya memikirkan makan dan tidur. Otaknya bekerja seperti kalkulator super:
+                </p>
+                <ul>
+                    <li><strong>Logika di Atas Lumpur:</strong> Jika babi lain berguling di lumpur untuk mendinginkan tubuh, Hasbi menggunakan lumpur sebagai papan tulis. Ia menggunakan moncongnya yang sensitif untuk menggoreskan angka dan variabel di tanah basah.</li>
+                    <li><strong>Keahlian Kalkulus:</strong> Hasbi tidak hanya bisa berhitung dasar. Ia memahami konsep integral dan diferensial. Misalnya, saat petani menuangkan makanan ke wadah, Hasbi bisa menghitung laju perubahan volume pakan tersebut secara real-time.</li>
+                    <li><strong>Kutipan Favorit Hasbi (dalam bahasa babi):</strong> "Grunt grunt, integral dari makanan adalah kebahagiaan"</li>
+                </ul>
+
+                <h2>3. Kebiasaan Unik</h2>
+                <ul>
+                    <li><strong>Optimasi Pakan:</strong> Sebelum makan, Hasbi akan membagi makanannya menjadi beberapa tumpukan geometris yang presisi untuk memaksimalkan efisiensi pengunyahan.</li>
+                    <li><strong>Ahli Trigonometri:</strong> Saat tidur siang, ia selalu mencari sudut kemiringan paling optimal (45°) terhadap bayangan pohon untuk mendapatkan kesejukan maksimal tanpa terkena sinar matahari langsung.</li>
+                    <li><strong>Asisten Petani:</strong> Seringkali petani menemukannya sedang menatap pagar kandang dengan intens. Ternyata, Hasbi sedang menghitung keliling dan luas area kandang untuk memastikan tidak ada pemborosan lahan.</li>
+                </ul>
+
+                <p style="color: #999; font-size: 13px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+                    © 2025 Sistem Informasi Manajemen - Praktikum Responsif
+                </p>
+            </div>
+
+            <!-- Tombol Tutup -->
+            <div class="article-footer">
+                <button id="close-btn" class="close-btn">Tutup & Kembali ke Game (ESC)</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // =========================================
+        // 1. SETUP CORE
+        // =========================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 6000);
+        
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.body.appendChild(renderer.domElement);
+
+        // LIGHTING
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // =========================================
+        // 2. GAME VARIABLES
+        // =========================================
+        // STATE UTAMA
+        let gameStarted = false; // False = Menu View, True = FPS View
+        let startButtonObject = null; // Objek Manusia/Bubble untuk diklik
+        let otherBubbles = {}; // TAMBAHAN: Simpan bubble-bubble lainnya
+
+        let playerCow = null;
+        let planeObject = null; // Kertas info
+        let isNearObject = false; 
+
+        // Input & UI
+        const keys = { w: false, a: false, s: false, d: false, shift: false };
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingBar = document.getElementById('loading-bar');
+        const loadingPercent = document.getElementById('loading-percent');
+        const loadingText = document.getElementById('loading-text');
+        const startMsg = document.getElementById('start-msg');
+        const interactMsg = document.getElementById('interact-msg');
+        const infoModal = document.getElementById('info-modal');
+        const closeBtn = document.getElementById('close-btn');
+        const gameUI = document.querySelectorAll('.game-ui');
+
+        let loadPercent = 0;
+        let modelLoaded = false;
+
+        // Config FPS
+        const eyeHeight = 1.2; 
+        const walkSpeed = 0.08;
+        const turnSpeed = 0.03;
+
+        // Tools
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+        const tempVector = new THREE.Vector3();
+
+        // =========================================
+        // 3. HELPER FUNCTION
+        // =========================================
+        function navigateTo(page) {
+            const overlay = document.getElementById('overlay');
+            const navItems = document.querySelectorAll('.nav-item');
+            
+            if (!overlay) return;
+            
+            // Buka overlay
+            overlay.classList.add('active');
+            
+            // Trigger nav item click
+            navItems.forEach(btn => {
+                if (btn.dataset.page === page) {
+                    btn.click();
+                }
+            });
+        }
+
+        // =========================================
+        // 4. EVENT LISTENERS
+        // =========================================
+        
+        // --- MOUSE MOVE & CLICK (Untuk Start Menu) ---
+        window.addEventListener('mousemove', (event) => {
+            // Normalisasi koordinat mouse (-1 sampai +1)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        window.addEventListener('click', () => {
+            // Jika game belum mulai, cek apakah kita klik Manusia/Bubble
+            if (!gameStarted && startButtonObject) {
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(startButtonObject, true);
+
+                if (intersects.length > 0) {
+                    console.log("🎮 START GAME TRIGGERED!");
+                    startGame();
+                }
+            }
+            
+            // TAMBAHAN: Cek bubble lainnya saat masih di menu
+            if (!gameStarted && Object.keys(otherBubbles).length > 0) {
+                raycaster.setFromCamera(mouse, camera);
+                
+                for (const [bubbleName, bubbleObject] of Object.entries(otherBubbles)) {
+                    const intersects = raycaster.intersectObject(bubbleObject, true);
+                    
+                    if (intersects.length > 0) {
+                        console.log(`🎯 Bubble "${bubbleName}" diklik!`);
+                        
+                        // Navigate ke halaman sesuai nama bubble
+                        if (bubbleName.includes('About')) {
+                            navigateTo('beranda');
+                        } else if (bubbleName.includes('Consult')) {
+                            navigateTo('konsultasi');
+                        } else if (bubbleName.includes('Founder')) {
+                            navigateTo('layanan');
+                        } else if (bubbleName.includes('Koleksi') || bubbleName.includes('Collection')) {
+                            navigateTo('artikel');
+                        } else if (bubbleName.includes('Game')) {
+                            navigateTo('game');
+                        }
+                        break;
+                    }
+                }
+            }
+        });
+
+        // --- KEYBOARD (Untuk Sapi) ---
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if(keys.hasOwnProperty(k) || k === 'shift') keys[k] = true;
+            
+            // Interaksi Enter (Hanya jika game sudah mulai)
+            if (gameStarted && e.key === 'Enter') {
+                if (isNearObject && infoModal.style.display !== 'block') {
+                    infoModal.style.display = 'block';
+                    infoModal.classList.add('active');
+                    e.preventDefault();
+                }
+            }
+            // Tutup Modal
+            if (e.key === 'Escape') {
+                if (infoModal.style.display === 'block') {
+                    infoModal.style.display = 'none';
+                    infoModal.classList.remove('active');
+                    e.preventDefault();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if(keys.hasOwnProperty(k) || k === 'shift') keys[k] = false;
+        });
+
+        // =========================================
+        // 4. LOADER
+        // =========================================
+        const loader = new GLTFLoader();
+        loader.setPath('public/models/');
+
+        loader.load('LowPoly Farm V2.gltf', (gltf) => {
+            const model = gltf.scene;
+            
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true; 
+                    child.receiveShadow = true;
+
+                    // CARI SAPI (Player)
+                    if (child.name === "Plane008" || child.name === "plane.008") {
+                        playerCow = child;
+                        playerCow.position.set(4, 0.1, 0); 
+                        playerCow.rotation.y = Math.PI; 
+                        child.visible = false; // Sapi invisible karena FPS
+                        console.log('✅ PLAYER FOUND:', child.name);
+                    }
+
+                    // CARI MANUSIA / BUBBLE (Tombol Start)
+                    if (child.name.includes("Bubble") || child.name === "cow_main") {
+                        if (child.name === "cow_main" || child.name.includes("Manusia") || child.name.includes("Human")) {
+                            // Ini bubble manusia - gunakan sebagai start button
+                            startButtonObject = child; 
+                            child.userData.isNPC = true;
+                            child.userData.baseScale = child.scale.clone();
+                            console.log("🎯 Tombol Start ditemukan:", child.name);
+                        } else {
+                            // Bubble lainnya - simpan untuk navigasi
+                            otherBubbles[child.name] = child;
+                            child.userData.baseScale = child.scale.clone();
+                            console.log("🎯 Bubble ditemukan:", child.name);
+                        }
+                    }
+
+                    // CARI KERTAS (Interactable)
+                    if (child.name.includes("Plane.001") || child.name.includes("plane.001")) {
+                        planeObject = child;
+                        child.userData.isInteractable = true;
+                        console.log('✅ INTERACTABLE OBJECT FOUND:', child.name);
+                    }
+                }
+            });
+
+            model.scale.set(0.5, 0.5, 0.5);
+            model.position.y = -2;
+            scene.add(model);
+
+            modelLoaded = true;
+            loadingBar.style.width = '100%';
+            loadingPercent.innerText = '100%';
+            // Finish only when both progress reached and model parsed
+            if (loadPercent >= 100) finishLoading();
+            
+            // SET POSISI KAMERA AWAL (Overview)
+            camera.position.set(56, 44, 52);
+            camera.lookAt(0, 0, 0);
+
+            camera.rotation.order = 'YXZ';
+            camera.rotation.x = -40 * (Math.PI / 180); // Nunduk ke bawah
+            camera.rotation.y = 19.48 * (Math.PI / 180);   // Putar arah (Blender Z -> ThreeJS Y)
+            camera.rotation.z = 0;
+
+            console.log('=== MODEL LOAD COMPLETE ===');
+            console.log('Player found?', playerCow !== null);
+            console.log('Interactive plane found?', planeObject !== null);
+
+        }, (xhr) => {
+            // Progress callback
+            if (xhr.lengthComputable) {
+                loadPercent = Math.round((xhr.loaded / xhr.total) * 100);
+                loadingBar.style.width = loadPercent + '%';
+                loadingPercent.innerText = loadPercent + '%';
+            }
+            // If model already parsed and progress reached 100, finish
+            if (loadPercent >= 100 && modelLoaded) finishLoading();
+
+        }, (err) => {
+            console.error('❌ MODEL LOAD ERROR:', err);
+            loadingText.innerText = "Error Loading Model ❌";
+            loadingText.style.color = "red";
+        });
+
+        // Hide overlay and show start message
+        function finishLoading() {
+            if (!loadingOverlay) return;
+            loadingOverlay.style.opacity = '0';
+            setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+                startMsg.classList.add('visible');
+            }, 420);
+        }
+
+        // =========================================
+        // 5. LOGIC TRANSISI
+        // =========================================
+        function startGame() {
+            gameStarted = true;
+            
+            // UI Update
+            startMsg.style.display = 'none';
+            gameUI.forEach(el => el.style.display = 'block'); // Munculkan Crosshair & Tutorial
+            document.body.style.cursor = 'none'; // Sembunyikan cursor mouse biar imersif
+            
+            // TAMBAHAN: Sembunyikan semua bubble
+            if (startButtonObject) {
+                startButtonObject.visible = false;
+            }
+            for (const [bubbleName, bubbleObject] of Object.entries(otherBubbles)) {
+                bubbleObject.visible = false;
+            }
+        }
+
+        // =========================================
+        // 6. ANIMATION LOOP
+        // =========================================
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            // === LOGIKA SAAT MASIH DI MENU (SEBELUM KLIK) ===
+            if (!gameStarted) {
+                // Highlight Bubble Manusia saat di-hover mouse
+                if (startButtonObject) {
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObject(startButtonObject, true);
+                    
+                    if (intersects.length > 0) {
+                        document.body.style.cursor = 'pointer';
+                        startButtonObject.scale.setScalar(startButtonObject.userData.baseScale.x * 1.2); // Membesar sedikit
+                    } else {
+                        document.body.style.cursor = 'default';
+                        startButtonObject.scale.copy(startButtonObject.userData.baseScale);
+                    }
+                }
+                
+                // TAMBAHAN: Hover effect untuk bubble lainnya
+                if (Object.keys(otherBubbles).length > 0) {
+                    raycaster.setFromCamera(mouse, camera);
+                    let isHoveringAny = false;
+                    
+                    for (const [bubbleName, bubbleObject] of Object.entries(otherBubbles)) {
+                        const intersects = raycaster.intersectObject(bubbleObject, true);
+                        
+                        if (intersects.length > 0) {
+                            isHoveringAny = true;
+                            bubbleObject.scale.setScalar(bubbleObject.userData.baseScale.x * 1.2); // Membesar
+                        } else {
+                            bubbleObject.scale.copy(bubbleObject.userData.baseScale); // Kembali normal
+                        }
+                    }
+                    
+                    if (isHoveringAny && !startButtonObject) {
+                        document.body.style.cursor = 'pointer';
+                    }
+                }
+                
+                renderer.render(scene, camera);
+                return; // STOP DI SINI, JANGAN JALANKAN LOGIKA SAPI DI BAWAH
+            }
+
+            // === LOGIKA SETELAH GAME DIMULAI (FPS SAPI) ===
+            
+            if (playerCow) {
+                // 1. Movement Logic
+                let speed = keys.shift ? (walkSpeed * 2) : walkSpeed;
+                
+                // Kunci gerakan jika sedang baca artikel
+                if (infoModal.style.display === 'block') speed = 0;
+
+                if (keys.a) playerCow.rotation.y += turnSpeed;
+                if (keys.d) playerCow.rotation.y -= turnSpeed;
+
+                let isMoving = false;
+                if (keys.w) {
+                    playerCow.position.x += Math.sin(playerCow.rotation.y) * speed;
+                    playerCow.position.z += Math.cos(playerCow.rotation.y) * speed;
+                    isMoving = true;
+                }
+                if (keys.s) {
+                    playerCow.position.x -= Math.sin(playerCow.rotation.y) * speed;
+                    playerCow.position.z -= Math.cos(playerCow.rotation.y) * speed;
+                    isMoving = true;
+                }
+
+                // Head Bobbing
+                let bob = isMoving ? Math.sin(time * 12) * 0.05 : 0;
+                
+                // 2. Camera Follow Logic
+                playerCow.getWorldPosition(tempVector);
+                camera.position.x = tempVector.x;
+                camera.position.y = tempVector.y + eyeHeight + bob; // + Bobbing
+                camera.position.z = tempVector.z;
+                
+                camera.rotation.y = playerCow.rotation.y + Math.PI;
+                camera.rotation.x = 0;
+                camera.rotation.z = 0;
+
+                // 3. Interaction Check (Kertas)
+                if (planeObject) {
+                    const planePos = new THREE.Vector3();
+                    planeObject.getWorldPosition(planePos);
+                    const dist = tempVector.distanceTo(planePos);
+
+                    if (dist < 3) {
+                        isNearObject = true;
+                        if(infoModal.style.display !== 'block') interactMsg.style.display = 'block';
+                        else interactMsg.style.display = 'none';
+                    } else {
+                        isNearObject = false;
+                        interactMsg.style.display = 'none';
+                    }
+                }
+            }
+
+            // NPC Animation (Bernapas)
+            scene.traverse((obj) => {
+                if (obj.userData.isNPC && obj !== startButtonObject) { // Jangan animasi tombol start kalau udah mulai
+                    obj.scale.copy(obj.userData.baseScale).multiplyScalar(1 + Math.sin(time * 2) * 0.05);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Button Close
+        if (closeBtn) closeBtn.addEventListener('click', () => {
+            infoModal.style.display = 'none';
+            infoModal.classList.remove('active');
+        });
+
+        animate();
+    </script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>SIM Konsultan Ternak – Animated UI</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background: linear-gradient(#6dd5ed, #2193b0);
+      font-family: Arial, Helvetica, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ===== EXPANDED MAP ===== */
+    .map-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.5s;
+      backdrop-filter: blur(4px);
+    }
+
+    .map-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .map {
+      --accent: #43cea2;
+      --accent-dark: #185a9d;
+      --shadow: rgba(24,90,157,0.4);
+      width: 340px;
+      height: 540px;
+      padding: 22px 20px 26px;
+      border-radius: 32px;
+      border: 1px solid rgba(255,255,255,0.25);
+      background: radial-gradient(circle at top, rgba(255,255,255,0.85), rgba(255,255,255,0.25));
+      box-shadow: 0 30px 60px var(--shadow);
+      transform: scale(0.4) translate(-300px, 300px);
+      transition: 0.6s cubic-bezier(.25,.8,.25,1);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .map::before {
+      content: "";
+      position: absolute;
+      inset: 16px;
+      border-radius: 24px;
+      background: linear-gradient(160deg, rgba(255,255,255,0.25), rgba(255,255,255,0));
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .map-overlay.active .map {
+      transform: scale(1) translate(0,0);
+    }
+
+    .map[data-theme="beranda"] {
+      --accent: #43cea2;
+      --accent-dark: #0f4070;
+      --shadow: rgba(24,90,157,0.45);
+    }
+
+    .map[data-theme="layanan"] {
+      --accent: #ff9966;
+      --accent-dark: #b5231d;
+      --shadow: rgba(255,94,98,0.35);
+    }
+
+    .map[data-theme="artikel"] {
+      --accent: #7f7fd5;
+      --accent-dark: #2a2e8a;
+      --shadow: rgba(47,53,165,0.35);
+    }
+
+    .map-header {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .nav-item {
+      border: 1px solid rgba(255,255,255,0.55);
+      border-radius: 16px;
+      padding: 10px 8px;
+      background: rgba(255,255,255,0.2);
+      color: rgba(0,0,0,0.65);
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: 0.3s;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+
+    .nav-item span {
+      font-size: 10px;
+      opacity: 0.6;
+    }
+
+    .nav-item strong {
+      font-size: 13px;
+    }
+
+    .nav-item.active {
+      background: white;
+      color: var(--accent-dark);
+      transform: translateY(-4px);
+      box-shadow: 0 10px 18px rgba(0,0,0,0.12);
+    }
+
+    .map-content {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      border-radius: 24px;
+      overflow: hidden;
+    }
+
+    .close {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      background: white;
+      border-radius: 50%;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+
+    /* ===== NAVIGATION PAGES ===== */
+    .map-content-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .page {
+      position: absolute;
+      inset: 0;
+      padding: 34px 26px;
+      color: white;
+      transform: translateY(100%);
+      opacity: 0;
+      transition: 0.75s cubic-bezier(.4,0,.2,1);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .page.active {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .beranda {
+      background: linear-gradient(135deg, #43cea2, #185a9d);
+    }
+
+    .layanan {
+      background: linear-gradient(135deg, #ff9966, #ff5e62);
+    }
+
+    .artikel {
+      background: linear-gradient(135deg, #7f7fd5, #86a8e7);
+    }
+
+    .page::after {
+      content: "";
+      position: absolute;
+      left: -50%;
+      bottom: -140px;
+      width: 220%;
+      height: 220px;
+      background: rgba(255,255,255,0.25);
+      border-radius: 40%;
+      animation: wave 7s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes wave {
+      from { transform: translateX(0); }
+      to { transform: translateX(55%); }
+    }
+
+    .page h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .page p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .lead {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .highlight-list,
+    .service-list,
+    .article-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 14px;
+    }
+
+    .highlight-list li,
+    .service-list li,
+    .article-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cta {
+      margin-top: auto;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 22px;
+      background: white;
+      color: var(--accent-dark);
+      font-weight: bold;
+      cursor: pointer;
+      align-self: flex-start;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    }
+
+    .service-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .service-card {
+      background: rgba(255,255,255,0.18);
+      border-radius: 14px;
+      padding: 10px;
+      font-size: 13px;
+      line-height: 1.3;
+      min-height: 70px;
+    }
+
+    .service-card p {
+      margin: 6px 0 0;
+      font-size: 12px;
+      opacity: 0.85;
+    }
+
+    .article-card {
+      background: rgba(255,255,255,0.2);
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .badge {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(255,255,255,0.2);
+    }
+
+    .form-panel {
+      position: absolute;
+      inset: 12px;
+      border-radius: 24px;
+      padding: 22px 20px;
+      background: rgba(5,12,30,0.9);
+      box-shadow: 0 25px 45px rgba(0,0,0,0.45);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transform: translateY(110%);
+      opacity: 0;
+      transition: 0.6s cubic-bezier(.4,0,.2,1);
+      pointer-events: none;
+      z-index: 3;
+      color: white;
+    }
+
+    .form-panel h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .form-panel p {
+      margin: 0;
+      font-size: 13px;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .form-panel.active {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .form-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .form-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .form-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .form-tab {
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 14px;
+      padding: 8px;
+      background: transparent;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .form-tab.active {
+      background: white;
+      color: #0f1c3d;
+      border-color: white;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+    }
+
+    .form-body {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      animation: fadeSlide 0.45s ease forwards;
+    }
+
+    .form-body.active {
+      display: flex;
+    }
+
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.8);
+    }
+
+    .form-field.full {
+      grid-column: 1 / -1;
+    }
+
+    .form-field input,
+    .form-field textarea,
+    .form-field select {
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      padding: 8px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .form-field textarea {
+      min-height: 70px;
+      resize: none;
+    }
+
+    .form-submit {
+      margin-top: 4px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 20px;
+      background: var(--accent);
+      color: #0f1c3d;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .particles {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .particles span {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: rgba(255,255,255,0.75);
+      border-radius: 50%;
+      animation: drift 12s linear infinite;
+      opacity: 0.3;
+    }
+
+    .particles span:nth-child(odd) {
+      width: 8px;
+      height: 8px;
+      animation-duration: 9s;
+    }
+
+    .particles span:nth-child(1) { top: 10%; left: 20%; animation-delay: 0s; }
+    .particles span:nth-child(2) { top: 30%; left: 70%; animation-delay: 1s; }
+    .particles span:nth-child(3) { top: 60%; left: 15%; animation-delay: 2s; }
+    .particles span:nth-child(4) { top: 80%; left: 60%; animation-delay: 3s; }
+    .particles span:nth-child(5) { top: 40%; left: 40%; animation-delay: 4s; }
+    .particles span:nth-child(6) { top: 20%; left: 85%; animation-delay: 5s; }
+    .particles span:nth-child(7) { top: 75%; left: 30%; animation-delay: 6s; }
+    .particles span:nth-child(8) { top: 55%; left: 80%; animation-delay: 7s; }
+
+    @keyframes drift {
+      0% { transform: translate3d(0,0,0); opacity: 0.2; }
+      50% { opacity: 0.8; }
+      100% { transform: translate3d(25px,-120px,0); opacity: 0; }
+    }
+
+  </style>
+</head>
+<body>
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>SIM Konsultan Ternak – Animated UI</title>
+  <link rel="stylesheet" href="public/styles.css">
+</head>
+<body>
+
+  <!-- PHONE NAV -->
+  <div class="phone" onclick="openMap()">
+  <img src="public/image/1.png" alt="Phone Navigation">
+</div>
+
+
+  <!-- MAP OVERLAY -->
+  <div class="map-overlay" id="overlay">
+    <div class="map" data-theme="beranda">
+      <div class="close" onclick="closeMap()">✕</div>
+      <div class="map-header">
+        <button class="nav-item active" data-page="beranda">
+          <span>01</span>
+          <strong>Beranda</strong>
+        </button>
+        <button class="nav-item" data-page="layanan">
+          <span>02</span>
+          <strong>Layanan</strong>
+        </button>
+        <button class="nav-item" data-page="artikel">
+          <span>03</span>
+          <strong>Artikel</strong>
+        </button>
+        <button class="nav-item" data-page="game">
+          <span>04</span>
+          <strong>Game</strong>
+        </button>
+      </div>
+      <div class="map-content">
+        <div class="map-content-inner">
+          <div class="particles" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+
+          <section class="page beranda active" data-page="beranda">
+            <div class="badge">Beranda</div>
+            <h2>Konsultasi Ternak Terpercaya</h2>
+            <p class="lead">Gambaran singkat layanan daring untuk bantu peternak mengambil keputusan dengan cepat.</p>
+            <ul class="highlight-list">
+              <li>✔ Ahli berpengalaman siap 24/7</li>
+              <li>✔ Pertemuan online dari mana saja</li>
+              <li>✔ Respon cepat dengan rekomendasi jelas</li>
+            </ul>
+            <button class="cta" id="openForm" type="button">Konsultasi Sekarang</button>
+          </section>
+
+          <section class="page layanan" data-page="layanan">
+            <div class="badge">Layanan Konsultasi</div>
+            <h2>Pilih Kebutuhan Anda</h2>
+            <p>Mulai dan Kembangkan Peternakan Anda denga Layanan Kami</p>
+            <div class="service-grid">
+              <div class="service-card">
+                <strong>Kesehatan Ternak</strong>
+                <p>Diagnosa, perawatan, dan jadwal vaksin.</p>
+              </div>
+              <div class="service-card">
+                <strong>Pakan & Nutrisi</strong>
+                <p>Formulasi pakan sapi dan kambing.</p>
+              </div>
+              <div class="service-card">
+                <strong>Manajemen Kandang</strong>
+                <p>Desain kandang, kebersihan, dan biosecurity.</p>
+              </div>
+              <div class="service-card">
+                <strong>Penggemukan & Breeding</strong>
+                <p>Program penggemukan dan perencanaan bibit.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="page artikel" data-page="artikel">
+            <div class="badge">Artikel & Edukasi</div>
+            <h2>Konten Praktis & Edukatif</h2>
+            <p>Tingkatkan pengetahuan peternak plus reputasi brand.</p>
+            <ul class="article-list">
+              <li>📚 Tips beternak sapi & kambing</li>
+              <li>🛡 Penyakit umum dan penanganannya</li>
+              <li>🏡 Manajemen pakan dan kandang</li>
+            </ul>
+            <div class="article-card">
+              <strong>Kenapa penting?</strong>
+              <p>Konten edukatif membangun kepercayaan dan menaikkan performa SEO lokal.</p>
+            </div>
+            <div class="article-resources">
+              <p class="resource-note">Geser kartu untuk memilih referensi PDF atau video peternakan favorit Anda.</p>
+              <div class="resource-hub" data-resource-hub>
+                <div class="resource-tabs" role="tablist">
+                  <button class="resource-tab active" type="button" data-resource-tab="pdf">
+                    <span>Perpustakaan PDF</span>
+                    <small>Jurnal Seputar Peternakan</small>
+                  </button>
+                  <button class="resource-tab" type="button" data-resource-tab="video">
+                    <span>Playlist YouTube</span>
+                    <small>Video Edukatif Seputar Peternakan </small>
+                  </button>
+                </div>
+                <div class="resource-carousel active" data-resource-carousel="pdf" aria-hidden="false">
+                  <div class="resource-track">
+                    <article class="resource-panel active" data-resource-id="pdf-1" data-media="pdf">
+                      <h4>Model Bisnis Peternakan Pesantren</h4>
+                      <div class="resource-meta">
+                        <span>PDF • 90 halaman</span>
+                        <span>Strategi usaha</span>
+                      </div>
+                      <p>Rancang arus kas, pembagian peran santri, dan SOP kandang yang siap diadaptasi.</p>
+                      <a href="assets\docs\Model Bisnis Ternak Di Pesantren.pdf" target="_blank" rel="noopener">Unduh PDF</a>
+                    </article>
+                    <article class="resource-panel" data-resource-id="pdf-2" data-media="pdf">
+                      <h4>Formulasi Pakan Sapi Potong</h4>
+                      <div class="resource-meta">
+                        <span>PDF • 9 halaman</span>
+                        <span>Gizi & nutrisi</span>
+                      </div>
+                      <p>Susun jadwal pemberian konsentrat, hijauan, dan vitamin untuk fase penggemukan.</p>
+                      <a href="assets\docs\Formulasi Pakan Lengkap.pdf" target="_blank" rel="noopener">Unduh PDF</a>
+                    </article>
+                    <article class="resource-panel" data-resource-id="pdf-3" data-media="pdf">
+                      <h4>Checklist Kesehatan Kambing</h4>
+                      <div class="resource-meta">
+                        <span>PDF • 7 halaman</span>
+                        <span>Monitoring harian</span>
+                      </div>
+                      <p>Panduan inspeksi fisik cepat, jadwal vaksin, dan catatan obat yang bisa dicetak.</p>
+                      <a href="assets\docs\Kesehatan Ternak.pdf" target="_blank" rel="noopener">Unduh PDF</a>
+                    </article>
+                  </div>
+                  <div class="resource-dots">
+                    <button class="resource-dot active" type="button" data-resource-target="pdf-1">1</button>
+                    <button class="resource-dot" type="button" data-resource-target="pdf-2">2</button>
+                    <button class="resource-dot" type="button" data-resource-target="pdf-3">3</button>
+                  </div>
+                </div>
+                <div class="resource-carousel" data-resource-carousel="video" aria-hidden="true">
+                  <div class="resource-track">
+                    <article class="resource-panel active" data-resource-id="video-1" data-media="video">
+                      <h4> Kandang Sapi Modern</h4>
+                      <div class="resource-meta">
+                        <span>YouTube • 14:13</span>
+                        <span>Biosecurity</span>
+                      </div>
+                      <p>Lihat alur sanitasi, jalur pakan otomatis, dan tata cahaya kandang tertutup.</p>
+                      <a href="https://youtu.be/lmdWwgw3Pec?si=vNFU_ciqUcnmcOA6" target="_blank" rel="noopener">Tonton Video</a>
+                    </article>
+                    <article class="resource-panel" data-resource-id="video-2" data-media="video">
+                      <h4>Mixing Pakan Fermentasi</h4>
+                      <div class="resource-meta">
+                        <span>YouTube • 17:11</span>
+                        <span>Fermentasi</span>
+                      </div>
+                      <p>Step-by-step meracik silase untuk sapi maupun kambing dengan alat sederhana.</p>
+                      <a href="https://youtu.be/i5osrbyjA8U?si=GxJxk0a-KOBOIHu-" target="_blank" rel="noopener">Tonton Video</a>
+                    </article>
+                    <article class="resource-panel" data-resource-id="video-3" data-media="video">
+                      <h4>Penanganan Wabah PMK</h4>
+                      <div class="resource-meta">
+                        <span>YouTube • 4:09</span>
+                        <span>Protokol darurat</span>
+                      </div>
+                      <p>Pahami langkah isolasi, desinfeksi, dan komunikasi saat muncul gejala wabah.</p>
+                      <a href="https://youtu.be/DcChErCzY_k?si=U86kSLCSWWFfcWLu" target="_blank" rel="noopener">Tonton Video</a>
+                    </article>
+                  </div>
+                  <div class="resource-dots">
+                    <button class="resource-dot active" type="button" data-resource-target="video-1">1</button>
+                    <button class="resource-dot" type="button" data-resource-target="video-2">2</button>
+                    <button class="resource-dot" type="button" data-resource-target="video-3">3</button>
+                  </div>
+                </div>
+          </section>
+
+          <section class="page game" data-page="game">
+            <div class="badge">Game Interaktif</div>
+            <h2>Snake: Cari Apel Tercepat</h2>
+            <p>Isi waktu sambil menunggu konsultasi dengan game klasik versi mini.</p>
+            <div class="snake-panel">
+              <h3>Score <span id="snakeScore">0</span></h3>
+              <div class="snake-meta">
+                <span>Gunakan tombol panah</span>
+                <span>Kecepatan naik saat skor tinggi</span>
+              </div>
+              <div class="snake-board">
+                <canvas id="snakeCanvas" width="210" height="210" aria-label="Game Snake"></canvas>
+              </div>
+              <div class="snake-controls">
+                <button id="snakeStart" type="button">Mulai Game</button>
+                <span class="snake-status" id="snakeStatus">Tekan Mulai untuk bermain.</span>
+              </div>
+              <div class="snake-pad" aria-label="Kontrol sentuh">
+                <span></span>
+                <button type="button" data-dir="up">▲</button>
+                <span></span>
+                <button type="button" data-dir="left">◄</button>
+                <span></span>
+                <button type="button" data-dir="right">►</button>
+                <span></span>
+                <button type="button" data-dir="down">▼</button>
+                <span></span>
+              </div>
+            </div>
+          </section>
+
+          <div class="form-panel" id="formPanel" aria-hidden="true">
+            <div class="form-panel-header">
+              <div class="badge">Form Konsultasi</div>
+              <button class="form-close" id="closeForm" type="button" aria-label="Tutup form">✕</button>
+            </div>
+            <h3>Layanan Konsultasi</h3>
+            <p>Pilih fokus konsultasi lalu isi detail di bawah ini.</p>
+            <div class="form-stage" id="formStage" data-step="options">
+              <div class="form-slide active" id="optionsSlide">
+                <div class="form-options" role="radiogroup" aria-label="Pilih fokus konsultasi">
+                  <label class="form-option" data-form="kesehatan">
+                    <input type="radio" name="formOption" value="kesehatan">
+                    <div class="form-option-content">
+                      <strong>Kesehatan Ternak</strong>
+                      <span>Cocok untuk diagnosa cepat dan jadwal vaksin.</span>
+                    </div>
+                  </label>
+                  <label class="form-option" data-form="pakan">
+                    <input type="radio" name="formOption" value="pakan">
+                    <div class="form-option-content">
+                      <strong>Pakan & Nutrisi</strong>
+                      <span>Optimalkan gizi harian sesuai tujuan ternak.</span>
+                    </div>
+                  </label>
+                  <label class="form-option" data-form="kandang">
+                    <input type="radio" name="formOption" value="kandang">
+                    <div class="form-option-content">
+                      <strong>Manajemen Kandang</strong>
+                      <span>Atasi kebersihan, ventilasi, atau tata letak.</span>
+                    </div>
+                  </label>
+                  <label class="form-option" data-form="breeding">
+                    <input type="radio" name="formOption" value="breeding">
+                    <div class="form-option-content">
+                      <strong>Penggemukan & Breeding</strong>
+                      <span>Susun target penggemukan atau perbaikan bibit.</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="form-placeholder" id="formPlaceholder">
+                  <strong>Pilih Fokus Konsultasi Anda</strong>
+                  <p>Isi lengkap di bawah ini</p>
+                </div>
+              </div>
+
+              <div class="form-slide" id="formsSlide">
+                <button class="form-back" id="formBack" type="button">← Back</button>
+
+              <form class="form-body" data-form="kesehatan" aria-hidden="true">
+                <div class="form-section">
+                  <h4>1. Data Umum</h4>
+                  <div class="form-grid">
+                    <label class="form-field">
+                      Nama Pemilik
+                      <input type="text" name="nama_kesehatan" placeholder="Contoh: Budi" required>
+                    </label>
+                    <label class="form-field">
+                      Nomor Kontak
+                      <input type="tel" name="kontak_kesehatan" placeholder="08xxxxxxxx" required>
+                    </label>
+                    <label class="form-field full">
+                      Jenis Ternak
+                      <select name="jenis_kesehatan" required>
+                        <option value="">Pilih...</option>
+                        <option value="sapi potong">Sapi potong</option>
+                        <option value="sapi perah">Sapi perah</option>
+                        <option value="kambing">Kambing</option>
+                        <option value="domba">Domba</option>
+                        <option value="lainnya">Lainnya</option>
+                      </select>
+                    </label>
+                    <label class="form-field">
+                      Jumlah ternak bermasalah
+                      <input type="number" name="jumlah_kesehatan" min="1" required>
+                    </label>
+                    <label class="form-field">
+                      Umur ternak (bulan/tahun)
+                      <input type="text" name="umur_kesehatan" placeholder="Contoh: 18 bulan" required>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <h4>2. Kondisi Kesehatan</h4>
+                  <div class="helper-text">Pilih semua gejala yang terlihat.</div>
+                  <div class="option-list" role="group" aria-label="Gejala">
+                    <label class="option-chip">
+                      <input type="checkbox" name="gejala" value="nafsu makan menurun"> Nafsu makan menurun
+                    </label>
+                    <label class="option-chip">
+                      <input type="checkbox" name="gejala" value="diare"> Diare
+                    </label>
+                    <label class="option-chip">
+                      <input type="checkbox" name="gejala" value="demam"> Demam
+                    </label>
+                    <label class="option-chip">
+                      <input type="checkbox" name="gejala" value="batuk"> Batuk / pilek
+                    </label>
+                    <label class="option-chip">
+                      <input type="checkbox" name="gejala" value="luka"> Luka / pincang
+                    </label>
+                    <label class="option-chip">
+                      <input type="checkbox" name="gejala" value="cairan"> Keluar cairan tidak normal
+                    </label>
+                  </div>
+                  <div class="form-grid">
+                    <label class="form-field full">
+                      Sejak kapan gejala muncul?
+                      <input type="text" name="durasi_gejala" placeholder="Misal: 3 hari" required>
+                    </label>
+                    <div class="form-field full">
+                      <span class="form-label">Apakah ternak sudah pernah mendapat vaksin?</span>
+                      <div class="stacked-options">
+                        <label class="option-chip">
+                          <input type="radio" name="vaksin" value="sudah" required> Sudah
+                        </label>
+                        <label class="option-chip">
+                          <input type="radio" name="vaksin" value="belum"> Belum
+                        </label>
+                        <label class="option-chip">
+                          <input type="radio" name="vaksin" value="tidak tahu"> Tidak tahu
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <h4>3. Lingkungan</h4>
+                  <div class="form-grid">
+                    <div class="form-field full">
+                      <span class="form-label">Apakah ada ternak lain dengan gejala serupa?</span>
+                      <div class="stacked-options">
+                        <label class="option-chip">
+                          <input type="radio" name="gejala_serupa" value="ya" required> Ya
+                        </label>
+                        <label class="option-chip">
+                          <input type="radio" name="gejala_serupa" value="tidak"> Tidak
+                        </label>
+                      </div>
+                    </div>
+                    <label class="form-field full">
+                      Kondisi kandang saat ini
+                      <select name="kondisi_kandang" required>
+                        <option value="">Pilih...</option>
+                        <option value="kering">Kering</option>
+                        <option value="lembab">Lembab</option>
+                        <option value="kotor">Kotor</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <h4>4. Tambahan</h4>
+                  <div class="form-grid">
+                    <label class="form-field full">
+                      Pernah diberi obat sebelumnya?
+                      <input type="text" name="obat_sebelumnya" placeholder="Tuliskan nama obat atau jawab Tidak">
+                    </label>
+                    <label class="form-field full">
+                      Jelaskan keluhan utama secara singkat
+                      <textarea name="keluhan_kesehatan" placeholder="Tuliskan keluhan utama" required></textarea>
+                    </label>
+                  </div>
+                </div>
+
+                <button class="form-submit" type="submit">Kirim Permintaan</button>
+              </form>
+
+            <form class="form-body" data-form="pakan" aria-hidden="true">
+              <div class="form-section">
+                <h4>🌾 Data Kontak & Profil</h4>
+                <div class="form-grid">
+                  <label class="form-field">
+                    Nama Pemilik
+                    <input type="text" name="nama_pakan" required>
+                  </label>
+                  <label class="form-field">
+                    Nomor Kontak
+                    <input type="tel" name="kontak_pakan" required>
+                  </label>
+                  <label class="form-field">
+                    Jenis ternak
+                    <select name="jenis_pakan" required>
+                      <option value="">Pilih...</option>
+                      <option value="sapi potong">Sapi potong</option>
+                      <option value="sapi perah">Sapi perah</option>
+                      <option value="kambing">Kambing</option>
+                      <option value="domba">Domba</option>
+                      <option value="lainnya">Lainnya</option>
+                    </select>
+                  </label>
+                  <label class="form-field">
+                    Jumlah ternak
+                    <input type="number" name="jumlah_pakan" min="1" required>
+                  </label>
+                  <label class="form-field">
+                    Umur dan bobot rata-rata
+                    <input type="text" name="umur_bobot_pakan" placeholder="Misal: 14 bulan / 280 kg" required>
+                  </label>
+                  <label class="form-field">
+                    Tujuan pemeliharaan
+                    <select name="tujuan_pakan" required>
+                      <option value="">Pilih...</option>
+                      <option value="penggemukan">Penggemukan</option>
+                      <option value="produksi susu">Produksi susu</option>
+                      <option value="breeding">Breeding</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>4. Pola Pakan</h4>
+                <div class="helper-text">Jenis pakan utama (boleh lebih dari satu).</div>
+                <div class="option-list" role="group" aria-label="Jenis pakan utama">
+                  <label class="option-chip">
+                    <input type="checkbox" name="jenis_pakan_utama" value="hijauan"> Hijauan
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="jenis_pakan_utama" value="konsentrat"> Konsentrat
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="jenis_pakan_utama" value="fermentasi"> Fermentasi
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="jenis_pakan_utama" value="limbah"> Limbah pertanian
+                  </label>
+                </div>
+                <div class="form-grid">
+                  <label class="form-field">
+                    Frekuensi pemberian per hari
+                    <select name="frekuensi_pakan" required>
+                      <option value="">Pilih...</option>
+                      <option value="1x">1x</option>
+                      <option value="2x">2x</option>
+                      <option value="3x">3x</option>
+                      <option value="lebih3x">Lebih dari 3x</option>
+                    </select>
+                  </label>
+                  <div class="form-field">
+                    <span class="form-label">Menggunakan suplemen / vitamin?</span>
+                    <div class="stacked-options">
+                      <label class="option-chip">
+                        <input type="radio" name="suplemen" value="ya" required> Ya
+                      </label>
+                      <label class="option-chip">
+                        <input type="radio" name="suplemen" value="tidak"> Tidak
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>7. Masalah yang Dihadapi</h4>
+                <div class="option-list" role="group" aria-label="Masalah utama">
+                  <label class="option-chip">
+                    <input type="checkbox" name="masalah_pakan" value="bobot"> Bobot sulit naik
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="masalah_pakan" value="boros"> Boros pakan
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="masalah_pakan" value="nafsu"> Nafsu makan rendah
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="masalah_pakan" value="biaya"> Biaya pakan tinggi
+                  </label>
+                </div>
+                <label class="form-field">
+                  Target bobot / produksi
+                  <input type="text" name="target_pakan" placeholder="Misal: 350 kg dalam 3 bulan">
+                </label>
+              </div>
+
+              <div class="form-section">
+                <h4>9. Tambahan</h4>
+                <label class="form-field full">
+                  Ketersediaan pakan di sekitar lokasi
+                  <textarea name="ketersediaan_pakan" placeholder="Tuliskan kondisi pasokan, harga, atau akses" required></textarea>
+                </label>
+                <label class="form-field full">
+                  Catatan tambahan
+                  <textarea name="catatan_pakan" placeholder="Informasi lain yang perlu diketahui"></textarea>
+                </label>
+              </div>
+
+              <button class="form-submit" type="submit">Kirim Permintaan</button>
+            </form>
+
+            <form class="form-body" data-form="kandang" aria-hidden="true">
+              <div class="form-section">
+                <h4>🏠 Informasi Kontak & Kandang</h4>
+                <div class="form-grid">
+                  <label class="form-field">
+                    Nama Pemilik
+                    <input type="text" name="nama_kandang" required>
+                  </label>
+                  <label class="form-field">
+                    Nomor Kontak
+                    <input type="tel" name="kontak_kandang" required>
+                  </label>
+                  <label class="form-field full">
+                    Lokasi Kandang
+                    <input type="text" name="lokasi_kandang" placeholder="Kabupaten/Kota" required>
+                  </label>
+                  <label class="form-field">
+                    Jenis kandang
+                    <select name="jenis_kandang" required>
+                      <option value="">Pilih...</option>
+                      <option value="permanen">Permanen</option>
+                      <option value="semi permanen">Semi permanen</option>
+                      <option value="tradisional">Tradisional</option>
+                    </select>
+                  </label>
+                  <label class="form-field">
+                    Sistem pemeliharaan
+                    <select name="sistem_pemeliharaan" required>
+                      <option value="">Pilih...</option>
+                      <option value="intensif">Intensif</option>
+                      <option value="semi intensif">Semi intensif</option>
+                      <option value="ekstensif">Ekstensif</option>
+                    </select>
+                  </label>
+                  <label class="form-field">
+                    Jumlah ternak dalam satu kandang
+                    <input type="number" name="jumlah_kandang" min="1" required>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>4. Kondisi Kandang</h4>
+                <div class="form-grid">
+                  <label class="form-field">
+                    Ventilasi udara
+                    <select name="ventilasi" required>
+                      <option value="">Pilih...</option>
+                      <option value="baik">Baik</option>
+                      <option value="cukup">Cukup</option>
+                      <option value="kurang">Kurang</option>
+                    </select>
+                  </label>
+                  <label class="form-field">
+                    Pencahayaan
+                    <select name="pencahayaan" required>
+                      <option value="">Pilih...</option>
+                      <option value="cukup">Cukup</option>
+                      <option value="kurang">Kurang</option>
+                    </select>
+                  </label>
+                  <label class="form-field">
+                    Sistem pembuangan kotoran
+                    <select name="pembuangan" required>
+                      <option value="">Pilih...</option>
+                      <option value="manual">Manual</option>
+                      <option value="saluran">Saluran</option>
+                      <option value="tidak ada">Tidak ada</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>7. Masalah Utama</h4>
+                <div class="helper-text">Pilih kendala yang sering terjadi.</div>
+                <div class="option-list" role="group" aria-label="Kendala kandang">
+                  <label class="option-chip">
+                    <input type="checkbox" name="kendala_kandang" value="bau"> Bau menyengat
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="kendala_kandang" value="licin"> Lantai licin
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="kendala_kandang" value="lembab"> Kandang lembab
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="kendala_kandang" value="stres"> Ternak mudah stres
+                  </label>
+                </div>
+                <label class="form-field">
+                  Frekuensi pembersihan kandang
+                  <input type="text" name="frekuensi_bersih" placeholder="Misal: 2x sehari" required>
+                </label>
+              </div>
+
+              <div class="form-section">
+                <h4>9. Tujuan & Lampiran</h4>
+                <div class="form-field">
+                  <span class="form-label">Apakah ingin renovasi / perbaikan tata letak?</span>
+                  <div class="stacked-options">
+                    <label class="option-chip">
+                      <input type="radio" name="renovasi" value="ya" required> Ya
+                    </label>
+                    <label class="option-chip">
+                      <input type="radio" name="renovasi" value="tidak"> Tidak
+                    </label>
+                  </div>
+                </div>
+                <label class="form-field">
+                  Rencana perubahan yang diinginkan
+                  <textarea name="rencana_kandang" placeholder="Tuliskan fokus perbaikan"></textarea>
+                </label>
+              </div>
+
+              <button class="form-submit" type="submit">Kirim Permintaan</button>
+            </form>
+
+            <form class="form-body" data-form="breeding" aria-hidden="true">
+              <div class="form-section">
+                <h4>📈 Data Kontak & Program</h4>
+                <div class="form-grid">
+                  <label class="form-field">
+                    Nama Pemilik
+                    <input type="text" name="nama_breeding" required>
+                  </label>
+                  <label class="form-field">
+                    Nomor Kontak
+                    <input type="tel" name="kontak_breeding" required>
+                  </label>
+                  <label class="form-field">
+                    Jenis ternak
+                    <select name="jenis_breeding" required>
+                      <option value="">Pilih...</option>
+                      <option value="sapi potong">Sapi potong</option>
+                      <option value="sapi perah">Sapi perah</option>
+                      <option value="kambing">Kambing</option>
+                      <option value="domba">Domba</option>
+                      <option value="lainnya">Lainnya</option>
+                    </select>
+                  </label>
+                  <label class="form-field">
+                    Jumlah ternak dalam program
+                    <input type="number" name="jumlah_breeding" min="1" required>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Penggemukan</h4>
+                <div class="form-grid">
+                  <label class="form-field">
+                    Bobot awal ternak
+                    <input type="number" name="bobot_awal" min="1" placeholder="kg" required>
+                  </label>
+                  <label class="form-field">
+                    Target bobot akhir
+                    <input type="number" name="bobot_target" min="1" placeholder="kg" required>
+                  </label>
+                  <label class="form-field">
+                    Durasi penggemukan
+                    <input type="text" name="durasi_penggemukan" placeholder="Misal: 4 bulan" required>
+                  </label>
+                  <label class="form-field">
+                    Sistem penggemukan
+                    <select name="sistem_penggemukan" required>
+                      <option value="">Pilih...</option>
+                      <option value="tradisional">Tradisional</option>
+                      <option value="intensif">Intensif</option>
+                      <option value="feedlot">Feedlot</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Breeding (Perbibitan)</h4>
+                <div class="form-grid">
+                  <label class="form-field">
+                    Tujuan breeding
+                    <select name="tujuan_breeding" required>
+                      <option value="">Pilih...</option>
+                      <option value="perbaikan genetik">Perbaikan genetik</option>
+                      <option value="produksi anakan">Produksi anakan</option>
+                      <option value="kualitas bibit">Kualitas bibit</option>
+                    </select>
+                  </label>
+                  <label class="form-field full">
+                    Riwayat reproduksi induk
+                    <textarea name="riwayat_breeding" placeholder="Siklus birahi, jumlah anak, catatan lainnya" required></textarea>
+                  </label>
+                  <div class="form-field full">
+                    <span class="form-label">Metode kawin</span>
+                    <div class="stacked-options">
+                      <label class="option-chip">
+                        <input type="radio" name="metode_kawin" value="alami" required> Alami
+                      </label>
+                      <label class="option-chip">
+                        <input type="radio" name="metode_kawin" value="ib"> IB
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <h4>Kendala & Target</h4>
+                <div class="helper-text">Pilih kendala utama.</div>
+                <div class="option-list" role="group" aria-label="Kendala breeding">
+                  <label class="option-chip">
+                    <input type="checkbox" name="kendala_breeding" value="pertumbuhan"> Pertumbuhan lambat
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="kendala_breeding" value="gagal bunting"> Kegagalan bunting
+                  </label>
+                  <label class="option-chip">
+                    <input type="checkbox" name="kendala_breeding" value="kualitas anakan"> Kualitas anakan rendah
+                  </label>
+                </div>
+                <label class="form-field">
+                  Target produksi / anakan per tahun
+                  <input type="text" name="target_produksi" placeholder="Misal: 15 pedet / tahun" required>
+                </label>
+                <label class="form-field">
+                  Catatan tambahan
+                  <textarea name="catatan_breeding" placeholder="Rencana jangka panjang, modal, fasilitas, dll"></textarea>
+                </label>
+              </div>
+
+              <button class="form-submit" type="submit">Kirim Permintaan</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+  const overlay = document.getElementById('overlay');
+  const mapEl = document.querySelector('.map');
+  const navItems = document.querySelectorAll('.nav-item');
+  const pages = document.querySelectorAll('.page');
+  const formPanel = document.getElementById('formPanel');
+  const openFormBtn = document.getElementById('openForm');
+  const closeFormBtn = document.getElementById('closeForm');
+  const formRadios = document.querySelectorAll('input[name="formOption"]');
+  const formOptions = document.querySelectorAll('.form-option');
+  const formBodies = document.querySelectorAll('.form-body');
+  const formPlaceholder = document.getElementById('formPlaceholder');
+  const formStage = document.getElementById('formStage');
+  const optionsSlide = document.getElementById('optionsSlide');
+  const formsSlide = document.getElementById('formsSlide');
+  const formBackBtn = document.getElementById('formBack');
+  const snakeCanvas = document.getElementById('snakeCanvas');
+  const snakeStartBtn = document.getElementById('snakeStart');
+  const snakeScoreEl = document.getElementById('snakeScore');
+  const snakeStatusEl = document.getElementById('snakeStatus');
+  const snakePadButtons = document.querySelectorAll('.snake-pad button');
+  const resourceTabs = document.querySelectorAll('[data-resource-tab]');
+  const resourceCarousels = document.querySelectorAll('[data-resource-carousel]');
+  const SHEETS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxx8yLkbRmVe1n-QFWMwBNKzNswzci8ST1IccpRhgpeH_5yZAIw1V5EBiLn_vQsTZmp/exec';
+
+  let currentPage = 'beranda';
+  const resourceState = new Map();
+
+  function updateResourceCarousel(carouselId, nextIndex = 0, animate = true) {
+    const state = resourceState.get(carouselId);
+    if (!state || !state.track) return;
+    const { track, panels, dots } = state;
+    const maxIndex = Math.max(0, panels.length - 1);
+    const clampedIndex = Math.min(Math.max(nextIndex, 0), maxIndex);
+    const offset = clampedIndex * -100;
+
+    if (!animate) {
+      track.style.transition = 'none';
+    }
+
+    track.style.transform = `translateX(${offset}%)`;
+
+    if (!animate) {
+      requestAnimationFrame(() => {
+        track.style.transition = '';
+      });
+    }
+
+    panels.forEach((panel, index) => {
+      panel.classList.toggle('active', index === clampedIndex);
+    });
+
+    dots.forEach((dot, index) => {
+      dot.classList.toggle('active', index === clampedIndex);
+    });
+
+    state.index = clampedIndex;
+  }
+
+  function switchResourceTab(targetId) {
+    if (!targetId) return;
+    resourceTabs.forEach(tab => {
+      const isActive = tab.dataset.resourceTab === targetId;
+      tab.classList.toggle('active', isActive);
+    });
+
+    resourceCarousels.forEach(carousel => {
+      const isActive = carousel.dataset.resourceCarousel === targetId;
+      carousel.classList.toggle('active', isActive);
+      carousel.setAttribute('aria-hidden', (!isActive).toString());
+      if (isActive) {
+        const state = resourceState.get(targetId);
+        if (state) {
+          updateResourceCarousel(targetId, state.index || 0, false);
+        }
+      }
+    });
+  }
+
+  function initResourceHub() {
+    if (!resourceCarousels.length) return;
+
+    resourceCarousels.forEach(carousel => {
+      const id = carousel.dataset.resourceCarousel;
+      const track = carousel.querySelector('.resource-track');
+      const panels = Array.from(carousel.querySelectorAll('.resource-panel'));
+      const dots = Array.from(carousel.querySelectorAll('[data-resource-target]'));
+
+      resourceState.set(id, { track, panels, dots, index: 0 });
+
+      dots.forEach(dot => {
+        dot.addEventListener('click', event => {
+          event.stopPropagation();
+          if (dot.classList.contains('active')) return;
+          const target = dot.dataset.resourceTarget;
+          const targetIndex = panels.findIndex(panel => panel.dataset.resourceId === target);
+          if (targetIndex >= 0) {
+            updateResourceCarousel(id, targetIndex);
+          }
+        });
+      });
+
+      updateResourceCarousel(id, 0, false);
+    });
+
+    resourceTabs.forEach(tab => {
+      tab.addEventListener('click', event => {
+        event.stopPropagation();
+        if (tab.classList.contains('active')) return;
+        switchResourceTab(tab.dataset.resourceTab);
+      });
+    });
+
+    const defaultTab =
+      document.querySelector('[data-resource-tab].active') ||
+      resourceTabs[0] ||
+      null;
+
+    if (defaultTab) {
+      switchResourceTab(defaultTab.dataset.resourceTab);
+    }
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result === 'string') {
+          const [, base64] = result.split(',');
+          resolve(base64 || '');
+        } else {
+          resolve('');
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function buildFormPayload(form) {
+    const formData = new FormData(form);
+    const payload = {
+      formName: form.dataset.form || 'tidak_diketahui',
+      submittedAt: new Date().toISOString(),
+    };
+    const filePromises = [];
+
+    formData.forEach((value, key) => {
+      if (value instanceof File) {
+        if (!value.name) return;
+        filePromises.push(
+          fileToBase64(value).then(base64 => {
+            payload[key] = {
+              fileName: value.name,
+              mimeType: value.type,
+              data: base64,
+            };
+          })
+        );
+        return;
+      }
+
+      if (payload[key]) {
+        if (!Array.isArray(payload[key])) {
+          payload[key] = [payload[key]];
+        }
+        payload[key].push(value);
+      } else {
+        payload[key] = value;
+      }
+    });
+
+    await Promise.all(filePromises);
+
+    Object.keys(payload).forEach(key => {
+      if (Array.isArray(payload[key])) {
+        payload[key] = payload[key].join(', ');
+      }
+    });
+
+    return payload;
+  }
+
+  async function submitFormToSheets(form, submitButton) {
+    if (!submitButton) return;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Mengirim...';
+
+    try {
+      if (!SHEETS_ENDPOINT || SHEETS_ENDPOINT.includes('YOUR_DEPLOYMENT_ID')) {
+        throw new Error('Endpoint Google Sheets belum disetel.');
+      }
+
+      const payload = await buildFormPayload(form);
+      const response = await fetch(SHEETS_ENDPOINT, {
+        method: 'POST',
+        mode: 'cors',
+        body: JSON.stringify(payload),
+      });
+
+      const rawText = await response.text();
+      let result = {};
+      try {
+        result = JSON.parse(rawText);
+      } catch (error) {
+        console.error('Tidak bisa parse respon Apps Script:', rawText);
+      }
+
+      if (!response.ok || result.status !== 'success') {
+        throw new Error(result.message || `Gagal mengirim: ${response.status} ${rawText}`);
+      }
+
+      submitButton.textContent = 'Terkirim ✔';
+      form.reset();
+      hideFormPanel();
+    } catch (error) {
+      console.error('Form submission failed:', error);
+      submitButton.textContent = 'Coba Lagi';
+      alert('Gagal mengirim formulir. Pastikan koneksi internet dan endpoint Google Sheets sudah benar.');
+    } finally {
+      setTimeout(() => {
+        submitButton.textContent = 'Kirim Permintaan';
+        submitButton.disabled = false;
+      }, 2000);
+    }
+  }
+
+  const snakeState = {
+    ctx: null,
+    tile: 14,
+    grid: 15,
+    loopId: null,
+    restartTimeout: null,
+    running: false,
+    snake: [],
+    direction: { x: 1, y: 0 },
+    queuedDirection: { x: 1, y: 0 },
+    apple: { x: 5, y: 5 },
+    speed: 180,
+    score: 0,
+  };
+
+  function openMap() {
+    overlay.classList.add('active');
+  }
+
+  function closeMap() {
+    overlay.classList.remove('active');
+    hideFormPanel();
+    pauseSnakeGame();
+  }
+
+  function showPage(page) {
+    currentPage = page;
+    pages.forEach(section => {
+      section.classList.toggle('active', section.dataset.page === page);
+    });
+
+    navItems.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.page === page);
+    });
+
+    mapEl.setAttribute('data-theme', page);
+
+    if (page !== 'beranda') {
+      hideFormPanel();
+    }
+
+    if (page !== 'game') {
+      pauseSnakeGame('Game dijeda. Kembali ke tab Game untuk lanjut.');
+    }
+  }
+
+  navItems.forEach(btn => {
+    btn.addEventListener('click', event => {
+      event.stopPropagation();
+      showPage(btn.dataset.page);
+    });
+  });
+
+  function updateStageHeight(activeSlide) {
+    if (!formStage || !activeSlide) return;
+    const newHeight = activeSlide.scrollHeight;
+    formStage.style.height = `${newHeight}px`;
+  }
+
+  function showForm(formName) {
+    const hasSelection = Boolean(formName);
+
+    formBodies.forEach(body => {
+      const isActive = hasSelection && body.dataset.form === formName;
+      body.classList.toggle('active', isActive);
+      body.setAttribute('aria-hidden', (!isActive).toString());
+    });
+
+    formRadios.forEach(radio => {
+      radio.checked = hasSelection && radio.value === formName;
+    });
+
+    formOptions.forEach(option => {
+      const isSelected = hasSelection && option.dataset.form === formName;
+      option.dataset.active = isSelected.toString();
+    });
+
+    if (formPlaceholder) {
+      formPlaceholder.classList.toggle('hidden', hasSelection);
+    }
+
+    if (formStage && optionsSlide && formsSlide) {
+      formStage.dataset.step = hasSelection ? 'form' : 'options';
+      optionsSlide.classList.toggle('active', !hasSelection);
+      formsSlide.classList.toggle('active', hasSelection);
+      if (hasSelection) {
+        formsSlide.scrollTop = 0;
+        formPanel.scrollTop = 0;
+      }
+      updateStageHeight(hasSelection ? formsSlide : optionsSlide);
+    }
+
+    if (!hasSelection) {
+      formRadios.forEach(radio => { radio.checked = false; });
+      formOptions.forEach(option => { option.dataset.active = 'false'; });
+    }
+  }
+
+  function revealFormPanel(targetForm = null) {
+    if (!formPanel) return;
+    showForm(targetForm);
+    formPanel.classList.add('active');
+    formPanel.setAttribute('aria-hidden', 'false');
+  }
+
+  function hideFormPanel() {
+    if (!formPanel) return;
+    formPanel.classList.remove('active');
+    formPanel.setAttribute('aria-hidden', 'true');
+    showForm(null);
+  }
+
+  if (openFormBtn) {
+    openFormBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      revealFormPanel();
+    });
+  }
+
+  if (closeFormBtn) {
+    closeFormBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      hideFormPanel();
+    });
+  }
+
+  if (formBackBtn) {
+    formBackBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      showForm(null);
+    });
+  }
+
+  formRadios.forEach(radio => {
+    radio.addEventListener('change', event => {
+      event.stopPropagation();
+      showForm(radio.value);
+    });
+  });
+
+  formBodies.forEach(form => {
+    const submitButton = form.querySelector('.form-submit');
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!submitButton) return;
+      await submitFormToSheets(form, submitButton);
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    if (!formStage || !optionsSlide || !formsSlide) return;
+    const activeSlide = formStage.dataset.step === 'form' ? formsSlide : optionsSlide;
+    updateStageHeight(activeSlide);
+  });
+
+  function initSnakeGame() {
+    if (!snakeCanvas) return;
+    snakeState.ctx = snakeCanvas.getContext('2d');
+    snakeCanvas.width = snakeState.tile * snakeState.grid;
+    snakeCanvas.height = snakeState.tile * snakeState.grid;
+    resetSnakeGame();
+  }
+
+  function resetSnakeGame(statusMessage = 'Tekan Mulai untuk bermain.', resetButtonLabel = true) {
+    snakeState.snake = [
+      { x: 7, y: 7 },
+      { x: 6, y: 7 },
+      { x: 5, y: 7 },
+    ];
+    snakeState.direction = { x: 1, y: 0 };
+    snakeState.queuedDirection = { x: 1, y: 0 };
+    snakeState.score = 0;
+    snakeState.speed = 180;
+    if (snakeState.loopId) {
+      clearTimeout(snakeState.loopId);
+      snakeState.loopId = null;
+    }
+    if (snakeState.restartTimeout) {
+      clearTimeout(snakeState.restartTimeout);
+      snakeState.restartTimeout = null;
+    }
+    snakeState.running = false;
+    placeSnakeApple();
+    updateSnakeScore();
+    if (statusMessage) {
+      updateSnakeStatus(statusMessage);
+    }
+    drawSnakeFrame();
+    if (resetButtonLabel && snakeStartBtn) snakeStartBtn.textContent = 'Mulai Game';
+  }
+
+  function placeSnakeApple() {
+    let candidate;
+    do {
+      candidate = {
+        x: Math.floor(Math.random() * snakeState.grid),
+        y: Math.floor(Math.random() * snakeState.grid),
+      };
+    } while (snakeState.snake.some(segment => segment.x === candidate.x && segment.y === candidate.y));
+    snakeState.apple = candidate;
+  }
+
+  function drawSnakeFrame() {
+    if (!snakeState.ctx) return;
+    const ctx = snakeState.ctx;
+    const size = snakeState.tile;
+    ctx.fillStyle = '#021123';
+    ctx.fillRect(0, 0, snakeCanvas.width, snakeCanvas.height);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    for (let i = 0; i < snakeState.grid; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * size + 0.5, 0);
+      ctx.lineTo(i * size + 0.5, snakeCanvas.height);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, i * size + 0.5);
+      ctx.lineTo(snakeCanvas.width, i * size + 0.5);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#ff5e62';
+    ctx.fillRect(
+      snakeState.apple.x * size + 2,
+      snakeState.apple.y * size + 2,
+      size - 4,
+      size - 4
+    );
+
+    snakeState.snake.forEach((segment, index) => {
+      ctx.fillStyle = index === 0 ? '#ffd452' : '#43cea2';
+      ctx.fillRect(
+        segment.x * size + 1,
+        segment.y * size + 1,
+        size - 2,
+        size - 2
+      );
+    });
+  }
+
+  function updateSnakeScore() {
+    if (snakeScoreEl) snakeScoreEl.textContent = snakeState.score.toString();
+  }
+
+  function updateSnakeStatus(message) {
+    if (snakeStatusEl) snakeStatusEl.textContent = message;
+  }
+
+  function startSnakeGame() {
+    if (!snakeCanvas) return;
+    if (!snakeState.ctx) initSnakeGame();
+    resetSnakeGame();
+    ensureSnakeRunning();
+    if (snakeStartBtn) snakeStartBtn.textContent = 'Mulai Ulang';
+  }
+
+  function snakeLoop() {
+    if (!snakeState.running) return;
+    snakeState.loopId = setTimeout(() => {
+      stepSnake();
+      drawSnakeFrame();
+      snakeLoop();
+    }, snakeState.speed);
+  }
+
+  function stepSnake() {
+    const dir = snakeState.queuedDirection;
+    const head = { ...snakeState.snake[0] };
+    head.x += dir.x;
+    head.y += dir.y;
+
+    const ateApple = head.x === snakeState.apple.x && head.y === snakeState.apple.y;
+
+    const hitWall =
+      head.x < 0 ||
+      head.y < 0 ||
+      head.x >= snakeState.grid ||
+      head.y >= snakeState.grid;
+
+    if (hitWall) {
+      restartSnakeAfterCollision('Ular menabrak tembok! Skor direset.');
+      return;
+    }
+
+    const segments = ateApple ? snakeState.snake : snakeState.snake.slice(0, -1);
+    const hitSelf = segments.some(segment => segment.x === head.x && segment.y === head.y);
+
+    if (hitSelf) {
+      restartSnakeAfterCollision('Ular mengenai tubuhnya sendiri! Skor direset.');
+      return;
+    }
+
+    snakeState.snake.unshift(head);
+    snakeState.direction = dir;
+
+    if (ateApple) {
+      snakeState.score += 5;
+      snakeState.speed = Math.max(80, snakeState.speed - 5);
+      updateSnakeScore();
+      placeSnakeApple();
+    } else {
+      snakeState.snake.pop();
+    }
+  }
+
+  function setSnakeDirection(x, y) {
+    const current = snakeState.direction;
+    if (current.x === -x && current.y === -y) return;
+    snakeState.queuedDirection = { x, y };
+  }
+
+  function pauseSnakeGame(message) {
+    const wasRunning = snakeState.running;
+    snakeState.running = false;
+    if (snakeState.loopId) {
+      clearTimeout(snakeState.loopId);
+      snakeState.loopId = null;
+    }
+    if (message && wasRunning) {
+      updateSnakeStatus(message);
+    }
+  }
+
+  function ensureSnakeRunning() {
+    if (snakeState.running) return;
+    snakeState.running = true;
+    updateSnakeStatus('Main sekarang! Gunakan panah atau tombol kuning.');
+    snakeLoop();
+  }
+
+  function restartSnakeAfterCollision(message) {
+    pauseSnakeGame();
+    updateSnakeStatus(message);
+    snakeState.restartTimeout = setTimeout(() => {
+      snakeState.restartTimeout = null;
+      const shouldAutoResume = overlay.classList.contains('active') && currentPage === 'game';
+      resetSnakeGame(null, !shouldAutoResume);
+      if (shouldAutoResume) {
+        ensureSnakeRunning();
+        if (snakeStartBtn) snakeStartBtn.textContent = 'Mulai Ulang';
+      }
+    }, 800);
+  }
+
+  function handleDirectionChange(event) {
+    if (!overlay.classList.contains('active') || currentPage !== 'game') return;
+    if (event.key === 'ArrowUp') {
+      setSnakeDirection(0, -1);
+      ensureSnakeRunning();
+      event.preventDefault();
+    } else if (event.key === 'ArrowDown') {
+      setSnakeDirection(0, 1);
+      ensureSnakeRunning();
+      event.preventDefault();
+    } else if (event.key === 'ArrowLeft') {
+      setSnakeDirection(-1, 0);
+      ensureSnakeRunning();
+      event.preventDefault();
+    } else if (event.key === 'ArrowRight') {
+      setSnakeDirection(1, 0);
+      ensureSnakeRunning();
+      event.preventDefault();
+    }
+  }
+
+  if (snakeStartBtn) {
+    snakeStartBtn.addEventListener('click', startSnakeGame);
+  }
+
+  snakePadButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      if (!overlay.classList.contains('active') || currentPage !== 'game') return;
+      const dir = button.dataset.dir;
+      if (dir === 'up') setSnakeDirection(0, -1);
+      if (dir === 'down') setSnakeDirection(0, 1);
+      if (dir === 'left') setSnakeDirection(-1, 0);
+      if (dir === 'right') setSnakeDirection(1, 0);
+      ensureSnakeRunning();
+    });
+  });
+
+  document.addEventListener('keydown', handleDirectionChange);
+
+  showPage('beranda');
+  showForm(null);
+  initResourceHub();
+  initSnakeGame();
+</script>
+
+</body>
+</html>
+
+
+
